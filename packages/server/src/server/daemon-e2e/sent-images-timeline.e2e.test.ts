@@ -2,7 +2,10 @@ import { afterEach, beforeEach, expect, test } from "vitest";
 import { mkdtempSync, rmSync } from "fs";
 import { tmpdir } from "os";
 import path from "path";
-import { createDaemonTestContext, type DaemonTestContext } from "../test-utils/index.js";
+import {
+  createDaemonTestContext,
+  type DaemonTestContext,
+} from "../test-utils/index.js";
 
 const PNG_BASE64 =
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==";
@@ -21,7 +24,11 @@ afterEach(async () => {
 }, 60_000);
 
 test("the timeline row for a message sent with images carries those images", async () => {
-  const agent = await ctx.client.createAgent({ provider: "claude", cwd, title: "images" });
+  const agent = await ctx.client.createAgent({
+    provider: "claude",
+    cwd,
+    title: "images",
+  });
 
   await ctx.client.sendMessage(agent.id, "test image", {
     images: [{ data: PNG_BASE64, mimeType: "image/png" }],
