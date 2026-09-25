@@ -115,11 +115,58 @@ Stream closure and subsequent request availability do not measure precise GPU
 cancellation latency. Synthetic round-trip transcription does not establish human
 speech accuracy.
 
-## Remaining acceptance
+## Application acceptance and client follow-ups
 
-Only macOS provider/service behavior was exercised. App playback on iOS, Android,
-browser and Electron, Windows/Linux daemon execution, human recognition accuracy,
-long-running stability and subjective listening remain separate acceptance work.
-The user approved the independently generated Vivian sample's sound; that does not
-establish application playback QA. Do not publish this work as fully end-to-end
-validated until the owner tries the affected application workflow.
+The isolated macOS trial subsequently ran on Node 22.20.0. Spoken Mandarin was
+transcribed into the owner's existing Codex conversation. In a diagnostic turn,
+Codex invoked `mcp__paseo__speak`, the local MLX speech endpoint returned HTTP 200,
+and the owner's original Chrome page acknowledged playback. The owner explicitly
+confirmed hearing the synthesized reply. The earlier synthetic harness alone did
+not establish this result; the actual application trial did.
+
+A fresh trial home also needed `daemon.mcp.injectIntoAgents` enabled. Serving the
+MCP endpoint is not the same as injecting its tools into an agent. That trial-only
+configuration was corrected without changing the core default or global credentials.
+An explicit speak-tool prompt was used for the successful diagnostic; reliable tool
+selection across arbitrary natural conversations has not been established.
+
+Two separately committed client improvements complete the tested workflow:
+
+- Draft composers do not supply a voice target until an agent exists. The voice
+  shortcut cannot send the `new-workspace` placeholder to the UUID-only endpoint.
+  Existing-agent start/stop behavior remains covered by regression tests.
+- Settings > General exposes **Voice waiting sound**. It defaults to on and is
+  stored per client. Turning it off removes only the repeated waiting cue; waiting
+  state, capture, spoken replies and playback acknowledgement remain available.
+  Changing the preference while a reply plays does not stop that reply.
+
+Client validation used these individual suites from `packages/app`:
+
+```sh
+npx vitest run src/composer/input/state.test.ts --bail=1
+npx vitest run src/hooks/use-settings/storage.test.ts --bail=1
+npx vitest run src/voice/voice-runtime.test.ts --bail=1
+```
+
+Results: 21, 78 and 23 passing tests respectively. Typecheck, lint and formatting
+also passed. The original 41 server tests and these 122 client tests were run at
+the corresponding implementation steps; this is not a claim of one combined test
+run. The full suite was not run.
+
+Real Chromium checks confirmed that the draft-composer shortcut sent no voice
+request and exposed no voice button. The settings switch could be turned off and
+remained off after reload; desktop and narrow viewport checks reported no page
+errors. The owner separately confirmed turning it off in the actual test browser.
+The screenshots below show the tested settings state, not native mobile execution.
+
+![Desktop settings with waiting sound disabled](assets/local-speech/waiting-sound-off-desktop.png)
+
+![Narrow browser settings with waiting sound disabled](assets/local-speech/waiting-sound-off-mobile.png)
+
+## Remaining coverage
+
+Native iOS/Android and packaged Electron playback, Windows/Linux daemons, broad
+human recognition accuracy, natural multi-turn tool-selection reliability and
+long-running stability remain untested. The Node 22 application trial does not
+mean every earlier server test was rerun on Node 22. No installed app or primary
+daemon was modified, and no private recording is included in the contribution.
