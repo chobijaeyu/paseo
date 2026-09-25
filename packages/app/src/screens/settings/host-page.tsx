@@ -23,7 +23,11 @@ import {
 } from "@getpaseo/protocol/terminal-profiles";
 import { AgentProfilesSection } from "@/agent-profiles";
 import { AgentSkillsSection } from "@/agent-skills";
-import { AdaptiveModalSheet, type SheetHeader } from "@/components/adaptive-modal-sheet";
+import {
+  AdaptiveModalSheet,
+  AdaptiveTextInput,
+  type SheetHeader,
+} from "@/components/adaptive-modal-sheet";
 import { SettingsTextAreaCard } from "@/components/settings-textarea";
 import { Alert as InlineAlert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -226,12 +230,91 @@ function HostStatusBadges({ serverId }: { serverId: string }) {
 }
 
 function HostConnectionError({ serverId }: { serverId: string }) {
+  const { t } = useTranslation();
   const snapshot = useHostRuntimeSnapshot(serverId);
   const lastError = snapshot?.lastError ?? null;
   const connectionError =
     typeof lastError === "string" && lastError.trim().length > 0 ? lastError.trim() : null;
   if (!connectionError) return null;
-  return <Text style={styles.errorText}>{connectionError}</Text>;
+  return (
+    <View testID="host-connection-error">
+      <Text style={styles.errorText}>{connectionError}</Text>
+      {snapshot?.authFailureReason ? (
+        <Text style={styles.errorText}>{t("settings.host.password.guidance")}</Text>
+      ) : null}
+    </View>
+  );
+}
+
+function HostPasswordSetting({ host }: { host: HostProfile }) {
+  const { t } = useTranslation();
+  const { setHostPassword } = useHostMutations();
+  const [password, setPassword] = useState("");
+  const [inputResetKey, setInputResetKey] = useState(0);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const save = useCallback(
+    async (nextPassword: string) => {
+      setSaving(true);
+      setError(null);
+      try {
+        await setHostPassword(host.serverId, nextPassword);
+        setPassword("");
+        setInputResetKey((key) => key + 1);
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : String(cause));
+      } finally {
+        setSaving(false);
+      }
+    },
+    [host.serverId, setHostPassword],
+  );
+  const savePassword = useCallback(() => void save(password), [password, save]);
+  const clearPassword = useCallback(() => void save(""), [save]);
+  return (
+    <SettingsSection title={t("settings.host.password.title")}>
+      <View style={settingsStyles.card} testID="host-password-setting">
+        <View style={settingsStyles.row}>
+          <View style={settingsStyles.rowContent}>
+            <Text style={settingsStyles.rowTitle}>{t("settings.host.password.label")}</Text>
+            <Text style={settingsStyles.rowHint}>
+              {t(host.password ? "settings.host.password.saved" : "settings.host.password.unset")}
+            </Text>
+          </View>
+        </View>
+        <AdaptiveTextInput
+          resetKey={inputResetKey}
+          testID="host-password-setting-input"
+          accessibilityLabel={t("settings.host.password.label")}
+          onChangeText={setPassword}
+          secureTextEntry
+          autoCapitalize="none"
+          autoCorrect={false}
+          style={styles.passwordInput}
+        />
+        {error ? <Text style={styles.errorText}>{error}</Text> : null}
+        <View style={styles.passwordActions}>
+          <Button
+            disabled={saving || !password || password === host.password}
+            onPress={savePassword}
+            testID="host-password-save"
+          >
+            {t("settings.host.password.save")}
+          </Button>
+          {host.password ? (
+            <Button
+              disabled={saving}
+              variant="secondary"
+              onPress={clearPassword}
+              testID="host-password-clear"
+            >
+              {t("settings.host.password.clear")}
+            </Button>
+          ) : null}
+        </View>
+      </View>
+    </SettingsSection>
+  );
 }
 
 export function HostConnectionsPage({ serverId }: { serverId: string }) {
@@ -371,6 +454,8 @@ export function HostSettingsPage({
       </View>
 
       <HostStatusBadges serverId={serverId} />
+      <HostConnectionError serverId={serverId} />
+      <HostPasswordSetting host={host} />
 
       <HostAppearanceSection host={host} />
 
@@ -1746,6 +1831,21 @@ const styles = StyleSheet.create((theme) => ({
     color: theme.colors.palette.red[300],
     fontSize: theme.fontSize.sm,
     marginBottom: theme.spacing[2],
+  },
+  passwordInput: {
+    color: theme.colors.foreground,
+    backgroundColor: theme.colors.surface2,
+    borderColor: theme.colors.border,
+    borderWidth: 1,
+    borderRadius: theme.borderRadius.lg,
+    paddingHorizontal: theme.spacing[3],
+    paddingVertical: theme.spacing[2],
+    marginHorizontal: theme.spacing[4],
+  },
+  passwordActions: {
+    flexDirection: "row",
+    gap: theme.spacing[2],
+    padding: theme.spacing[4],
   },
   connectionLatency: {
     fontSize: theme.fontSize.base,

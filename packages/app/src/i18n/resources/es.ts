@@ -1659,6 +1659,13 @@ export const es: TranslationResources = {
     },
   },
   pairing: {
+    hostPassword: {
+      title: "Contraseña de {{host}}",
+      body: "Introduce la contraseña para conectar con {{host}}.",
+      label: "Contraseña del host",
+      reopen: "Introducir contraseña",
+      saveError: "No se pudo guardar la contraseña",
+    },
     connectionMethods: {
       title: "Agregar conexión",
       direct: {
@@ -2348,6 +2355,15 @@ export const es: TranslationResources = {
       },
     },
     host: {
+      password: {
+        title: "Contraseña",
+        label: "Contraseña del host",
+        saved: "Hay una contraseña guardada para este host.",
+        unset: "No hay ninguna contraseña guardada.",
+        guidance: "Establece la contraseña abajo para volver a conectar este host.",
+        save: "Guardar contraseña",
+        clear: "Borrar contraseña",
+      },
       appearance: {
         title: "Apariencia",
         name: {

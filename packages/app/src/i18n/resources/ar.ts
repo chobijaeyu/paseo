@@ -1613,6 +1613,13 @@ export const ar: TranslationResources = {
     },
   },
   pairing: {
+    hostPassword: {
+      title: "كلمة المرور لـ {{host}}",
+      body: "أدخل كلمة المرور للاتصال بـ {{host}}.",
+      label: "كلمة مرور المضيف",
+      reopen: "إدخال كلمة المرور",
+      saveError: "تعذر حفظ كلمة المرور",
+    },
     connectionMethods: {
       title: "إضافة اتصال",
       direct: {
@@ -2294,6 +2301,15 @@ export const ar: TranslationResources = {
       },
     },
     host: {
+      password: {
+        title: "كلمة المرور",
+        label: "كلمة مرور المضيف",
+        saved: "تم حفظ كلمة مرور لهذا المضيف.",
+        unset: "لم تُحفظ كلمة مرور.",
+        guidance: "عيّن كلمة المرور أدناه لإعادة الاتصال بهذا المضيف.",
+        save: "حفظ كلمة المرور",
+        clear: "مسح كلمة المرور",
+      },
       appearance: {
         title: "المظهر",
         name: {

@@ -1644,6 +1644,13 @@ export const ptBR: TranslationResources = {
     },
   },
   pairing: {
+    hostPassword: {
+      title: "Senha de {{host}}",
+      body: "Digite a senha para se conectar a {{host}}.",
+      label: "Senha do host",
+      reopen: "Inserir senha",
+      saveError: "Não foi possível salvar a senha",
+    },
     connectionMethods: {
       title: "Adicionar conexão",
       direct: {
@@ -2330,6 +2337,15 @@ export const ptBR: TranslationResources = {
       },
     },
     host: {
+      password: {
+        title: "Senha",
+        label: "Senha do host",
+        saved: "Uma senha está salva para este host.",
+        unset: "Nenhuma senha salva.",
+        guidance: "Defina a senha abaixo para reconectar este host.",
+        save: "Salvar senha",
+        clear: "Limpar senha",
+      },
       appearance: {
         title: "Aparência",
         name: {

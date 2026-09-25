@@ -1,11 +1,48 @@
-import { compare, compareSync, hashSync } from "bcryptjs";
+import { compare, hashSync } from "bcryptjs";
 import { timingSafeEqual } from "node:crypto";
 import type { RequestHandler } from "express";
+import type { WSHelloMessage } from "@getpaseo/protocol/messages";
+import { OWNER_PERMISSIONS } from "./authorization/index.js";
+import { matchesLocalCredential } from "./local-credential.js";
+import type { SessionAdmission } from "./websocket-server.js";
+
+export type AdmissionFailure = "password_required" | "incorrect_password";
+
+type AdmissionResolution = { admission: SessionAdmission } | { rejection: AdmissionFailure };
+
+export async function resolveSessionAdmission(input: {
+  credential: WSHelloMessage["auth"];
+  passwordHash: string | undefined;
+  localCredential: string | null;
+  transport: "direct" | "relay";
+}): Promise<AdmissionResolution> {
+  const { credential, passwordHash, localCredential, transport } = input;
+  if (!passwordHash) {
+    return { admission: { principalId: "owner", permissions: OWNER_PERMISSIONS } };
+  }
+  if (!credential) {
+    // COMPAT(relayPasswordOptional): added in v0.9.1, remove once release N mobile builds are live on App Store and Play.
+    if (transport === "relay") {
+      return { admission: { principalId: "owner", permissions: OWNER_PERMISSIONS } };
+    }
+    return { rejection: "password_required" };
+  }
+  if (credential.kind === "localCredential") {
+    if (localCredential && matchesLocalCredential(localCredential, credential.token)) {
+      return { admission: { principalId: "owner", permissions: OWNER_PERMISSIONS } };
+    }
+    return { rejection: "incorrect_password" };
+  }
+  return (await compare(credential.password, passwordHash))
+    ? { admission: { principalId: "owner", permissions: OWNER_PERMISSIONS } }
+    : { rejection: "incorrect_password" };
+}
 
 export const DAEMON_PASSWORD_BCRYPT_COST = 12;
 
 export interface DaemonAuthConfig {
   password?: string;
+  localCredential?: () => string | null;
 }
 
 export interface BearerAuthRejectContext {
@@ -19,10 +56,6 @@ interface BearerValidationInput {
   token: string | null;
 }
 
-export function isBearerTokenValid(input: BearerValidationInput): boolean {
-  return isBearerTokenValidSync(input);
-}
-
 export async function isBearerTokenValidAsync(input: BearerValidationInput): Promise<boolean> {
   if (!input.password) {
     return true;
@@ -32,17 +65,6 @@ export async function isBearerTokenValidAsync(input: BearerValidationInput): Pro
   }
 
   return compare(input.token, input.password);
-}
-
-export function isBearerTokenValidSync(input: BearerValidationInput): boolean {
-  if (!input.password) {
-    return true;
-  }
-  if (input.token === null) {
-    return false;
-  }
-
-  return compareSync(input.token, input.password);
 }
 
 export function hashDaemonPassword(password: string): string {
@@ -101,7 +123,13 @@ export function createRequireBearerMiddleware(
     void (async () => {
       try {
         const token = extractHttpBearerToken(req.header("authorization"));
-        if (!(await isBearerTokenValidAsync({ password, token }))) {
+        const localCredential = req.path === "/api/status" ? auth?.localCredential?.() : null;
+        const isLocal =
+          localCredential !== null &&
+          localCredential !== undefined &&
+          token !== null &&
+          matchesLocalCredential(localCredential, token);
+        if (!isLocal && !(await isBearerTokenValidAsync({ password, token }))) {
           onReject?.({
             path: req.path,
             method: req.method,

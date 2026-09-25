@@ -1663,6 +1663,13 @@ export const fr: TranslationResources = {
     },
   },
   pairing: {
+    hostPassword: {
+      title: "Mot de passe pour {{host}}",
+      body: "Saisissez le mot de passe pour vous connecter à {{host}}.",
+      label: "Mot de passe de l’hôte",
+      reopen: "Saisir le mot de passe",
+      saveError: "Impossible d’enregistrer le mot de passe",
+    },
     connectionMethods: {
       title: "Ajouter une connexion",
       direct: {
@@ -2352,6 +2359,15 @@ export const fr: TranslationResources = {
       },
     },
     host: {
+      password: {
+        title: "Mot de passe",
+        label: "Mot de passe de l’hôte",
+        saved: "Un mot de passe est enregistré pour cet hôte.",
+        unset: "Aucun mot de passe enregistré.",
+        guidance: "Définissez le mot de passe ci-dessous pour reconnecter cet hôte.",
+        save: "Enregistrer le mot de passe",
+        clear: "Effacer le mot de passe",
+      },
       appearance: {
         title: "Apparence",
         name: {
