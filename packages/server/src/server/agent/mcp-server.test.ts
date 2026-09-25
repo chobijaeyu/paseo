@@ -4063,10 +4063,11 @@ describe("send_agent_prompt MCP tool", () => {
 
       childSession.finishTurn();
 
-      const finishNotifications = () =>
-        (parentClient.sessions[0]?.prompts ?? []).filter((prompt) =>
+      function finishNotifications() {
+        return (parentClient.sessions[0]?.prompts ?? []).filter((prompt) =>
           prompt.includes(`Agent ${childId} (Busy Child) finished.`),
         );
+      }
       await vi.waitFor(() => expect(finishNotifications()).not.toHaveLength(0));
       await new Promise((resolve) => setTimeout(resolve, 100));
       expect(finishNotifications()).toHaveLength(1);
