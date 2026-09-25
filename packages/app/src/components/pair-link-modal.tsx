@@ -10,7 +10,7 @@ import { parseRelayConnectionUri } from "@/utils/daemon-endpoints";
 import { parseConnectionOfferFromUrl } from "@getpaseo/protocol/connection-offer";
 import { AdaptiveModalSheet, AdaptiveTextInput, type SheetHeader } from "./adaptive-modal-sheet";
 import { getConnectionAuthFailureReason } from "@/utils/test-daemon-connection";
-import { resetCredentialsForPairingTarget } from "./pair-link-credentials";
+import { PairingTargetTracker } from "./pair-link-credentials";
 import { Button } from "@/components/ui/button";
 import type { EditingTextInputHandle } from "@/components/ui/text-input";
 
@@ -110,6 +110,7 @@ function PairLinkModalContent({
   const isMobile = useIsCompactFormFactor();
 
   const offerUrlRef = useRef(initialUrl ?? "");
+  const targetTracker = useRef(new PairingTargetTracker(initialUrl));
   const inputRef = useRef<EditingTextInputHandle>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
@@ -119,6 +120,7 @@ function PairLinkModalContent({
 
   const clearInput = useCallback(() => {
     offerUrlRef.current = "";
+    targetTracker.current = new PairingTargetTracker();
     inputRef.current?.replaceText("");
     setPassword("");
     setNeedsPassword(false);
@@ -195,10 +197,9 @@ function PairLinkModalContent({
   );
 
   const handleChangeOfferUrl = useCallback((next: string) => {
-    const reset = resetCredentialsForPairingTarget(offerUrlRef.current, next);
-    if (reset) {
-      setPassword(reset.password);
-      setNeedsPassword(reset.needsPassword);
+    if (targetTracker.current.changeUrl(next)) {
+      setPassword("");
+      setNeedsPassword(false);
       resetPasswordInput();
       setErrorMessage("");
     }

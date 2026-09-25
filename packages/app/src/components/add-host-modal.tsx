@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useReducer, useState } from "react";
+import { useCallback, useMemo, useReducer, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Alert, Pressable, Text, View } from "react-native";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
@@ -17,7 +17,7 @@ import {
 } from "@/utils/test-daemon-connection";
 import { AdaptiveModalSheet, AdaptiveTextInput, type SheetHeader } from "./adaptive-modal-sheet";
 import { Button } from "@/components/ui/button";
-import { resetCredentialsForPairingTarget } from "./pair-link-credentials";
+import { PairingTargetTracker } from "./pair-link-credentials";
 
 const FLEX_ONE_STYLE = { flex: 1 } as const;
 
@@ -311,6 +311,7 @@ export function AddHostModal({ visible, onClose, onCancel, onSaved }: AddHostMod
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
   const [advancedUri, setAdvancedUri] = useState("");
   const [inputResetKey, bumpInputResetKey] = useReducer((key: number) => key + 1, 0);
+  const advancedTarget = useRef(new PairingTargetTracker("", true));
 
   const clearInput = useCallback(() => {
     setHost("");
@@ -320,6 +321,7 @@ export function AddHostModal({ visible, onClose, onCancel, onSaved }: AddHostMod
     setIsPasswordVisible(false);
     setIsAdvancedOpen(false);
     setAdvancedUri("");
+    advancedTarget.current = new PairingTargetTracker("", true);
     bumpInputResetKey();
   }, []);
 
@@ -488,23 +490,14 @@ export function AddHostModal({ visible, onClose, onCancel, onSaved }: AddHostMod
     void handleSave();
   }, [handleSave]);
 
-  const handleChangeAdvancedUri = useCallback(
-    (next: string) => {
-      if (
-        (advancedUri.startsWith("relay://") ||
-          advancedUri.includes("#connect=") ||
-          next.startsWith("relay://") ||
-          next.includes("#connect=")) &&
-        resetCredentialsForPairingTarget(advancedUri, next)
-      ) {
-        setPassword("");
-        bumpInputResetKey();
-        setErrorMessage("");
-      }
-      setAdvancedUri(next);
-    },
-    [advancedUri],
-  );
+  const handleChangeAdvancedUri = useCallback((next: string) => {
+    if (advancedTarget.current.changeUrl(next)) {
+      setPassword("");
+      bumpInputResetKey();
+      setErrorMessage("");
+    }
+    setAdvancedUri(next);
+  }, []);
 
   const handleToggleUseTls = useCallback(() => {
     if (isSaving) return;
@@ -517,6 +510,7 @@ export function AddHostModal({ visible, onClose, onCancel, onSaved }: AddHostMod
 
   const handleToggleAdvanced = useCallback(() => {
     if (!isAdvancedOpen) {
+      advancedTarget.current = new PairingTargetTracker("", true);
       try {
         setAdvancedUri(
           buildConnectionUriFromDraft({ host, port, useTls, password }, directConnectionLabels),
