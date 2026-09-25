@@ -17,6 +17,7 @@ import {
 } from "@/utils/test-daemon-connection";
 import { AdaptiveModalSheet, AdaptiveTextInput, type SheetHeader } from "./adaptive-modal-sheet";
 import { Button } from "@/components/ui/button";
+import { resetCredentialsForPairingTarget } from "./pair-link-credentials";
 
 const FLEX_ONE_STYLE = { flex: 1 } as const;
 
@@ -487,6 +488,24 @@ export function AddHostModal({ visible, onClose, onCancel, onSaved }: AddHostMod
     void handleSave();
   }, [handleSave]);
 
+  const handleChangeAdvancedUri = useCallback(
+    (next: string) => {
+      if (
+        (advancedUri.startsWith("relay://") ||
+          advancedUri.includes("#connect=") ||
+          next.startsWith("relay://") ||
+          next.includes("#connect=")) &&
+        resetCredentialsForPairingTarget(advancedUri, next)
+      ) {
+        setPassword("");
+        bumpInputResetKey();
+        setErrorMessage("");
+      }
+      setAdvancedUri(next);
+    },
+    [advancedUri],
+  );
+
   const handleToggleUseTls = useCallback(() => {
     if (isSaving) return;
     setUseTls((current) => !current);
@@ -655,7 +674,7 @@ export function AddHostModal({ visible, onClose, onCancel, onSaved }: AddHostMod
             accessibilityLabel={t("pairing.direct.fields.connectionUri")}
             initialValue={advancedUri}
             resetKey={`direct-host-uri-${inputResetKey}`}
-            onChangeText={setAdvancedUri}
+            onChangeText={handleChangeAdvancedUri}
             placeholder="tcp://localhost:6767?ssl=true"
             placeholderTextColor={theme.colors.foregroundMuted}
             style={styles.input}

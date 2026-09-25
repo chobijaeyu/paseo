@@ -3822,6 +3822,73 @@ describe("HostRuntimeStore initial connection hint bootstrap", () => {
     store.syncHosts([]);
   });
 
+  it("tries another connection after the active connection rejects its password", async () => {
+    const relayClient = makeConnectedProbeClient(5);
+    const directClient = makeConnectedProbeClient(5);
+    const host = makeHost({
+      serverId: "srv_rejected_relay_with_local_direct",
+      password: "stale-password",
+      preferredConnectionId: "relay:remote:443",
+      connections: [
+        {
+          id: "relay:remote:443",
+          type: "relay",
+          relayEndpoint: "remote:443",
+          daemonPublicKeyB64: "pk_test_offer",
+        },
+        { id: "direct:localhost:6799", type: "directTcp", endpoint: "localhost:6799" },
+      ],
+    });
+    const probeAttempts: string[] = [];
+    const store = new HostRuntimeStore({
+      storage: createMemoryHostRuntimeStorage(),
+      deps: {
+        createClient: () => new FakeDaemonClient() as unknown as DaemonClient,
+        connectToDaemon: async ({ connection }) => {
+          probeAttempts.push(connection.id);
+          if (connection.type === "relay")
+            throw new DaemonAuthenticationError("incorrect_password");
+          return {
+            client: directClient as unknown as DaemonClient,
+            serverId: host.serverId,
+            hostname: host.label,
+          };
+        },
+        getClientId: async () => "cid_rejected_relay_with_local_direct",
+      },
+    });
+    store.syncHosts([host], {
+      initialConnectionByServerId: new Map([
+        [
+          host.serverId,
+          {
+            connectionId: "relay:remote:443",
+            existingClient: relayClient as unknown as DaemonClient,
+          },
+        ],
+      ]),
+    });
+    await waitForHostOnline(store, host.serverId);
+    relayClient.authFailureReason = "incorrect_password";
+    relayClient.setConnectionState({ status: "disconnected", reason: "Incorrect password" });
+    await onceHostSnapshotMatches(
+      store,
+      host.serverId,
+      (snapshot) => snapshot?.authFailureReason === "incorrect_password",
+    );
+    await store.runProbeCycleNow(host.serverId);
+    await onceHostSnapshotMatches(
+      store,
+      host.serverId,
+      (snapshot) =>
+        snapshot?.connectionStatus === "online" &&
+        snapshot.activeConnectionId === "direct:localhost:6799",
+    );
+    expect(probeAttempts).toContain("direct:localhost:6799");
+    expect(probeAttempts).not.toContain("relay:remote:443");
+    store.syncHosts([]);
+  });
+
   it("keeps five rejected hosts red with independent password errors", async () => {
     let probeAttempts = 0;
     const store = new HostRuntimeStore({

@@ -625,7 +625,7 @@ export class HostRuntimeController {
   private switchRequestVersion = 0;
   private probeRequestVersion = 0;
   private probeCycleInFlight: Promise<void> | null = null;
-  private authRejected = false;
+  private readonly authRejectedConnectionIds = new Set<string>();
 
   constructor(input: {
     host: HostProfile;
@@ -717,7 +717,7 @@ export class HostRuntimeController {
     const passwordChanged = this.host.password !== host.password;
     if (passwordChanged) {
       this.probeRequestVersion += 1;
-      this.authRejected = false;
+      this.authRejectedConnectionIds.clear();
       this.updateSnapshot({ authFailureReason: null });
     }
     const activeConnectionId = this.snapshot.activeConnectionId;
@@ -806,7 +806,6 @@ export class HostRuntimeController {
   }
 
   private async runProbeCycle(): Promise<void> {
-    if (this.authRejected) return;
     const requestVersion = ++this.probeRequestVersion;
     if (this.host.connections.length === 0) {
       if (!this.isCurrentProbeRequest(requestVersion)) {
@@ -826,6 +825,7 @@ export class HostRuntimeController {
     const hasActiveOnlineConnection = isOnline && activeConnectionId !== null;
 
     const connectionsToProbe = this.host.connections.filter((connection) => {
+      if (this.authRejectedConnectionIds.has(connection.id)) return false;
       const lastProbed = this.connectionLastProbedAt.get(connection.id);
       if (lastProbed == null) {
         return true;
@@ -913,7 +913,6 @@ export class HostRuntimeController {
             expectedProbeVersion: requestVersion,
           });
         } else if (probeAuthFailure) {
-          this.authRejected = true;
           const message = new DaemonAuthenticationError(probeAuthFailure).message;
           this.applyConnectionEvent({ type: "connect_failed", message });
           this.updateSnapshot({
@@ -924,7 +923,7 @@ export class HostRuntimeController {
         return;
       }
 
-      if (activeProbe?.status === "unavailable") {
+      if (this.isConnectionUnavailable(currentActiveConnectionId, activeProbe)) {
         const nextConnectionId = selectBestConnection({
           candidates: buildConnectionCandidates(this.host),
           probeByConnectionId,
@@ -1059,7 +1058,11 @@ export class HostRuntimeController {
             publishProbeState();
           } catch (error) {
             if (this.isCurrentProbeRequest(requestVersion)) {
-              probeAuthFailure = getConnectionAuthFailureReason(error) ?? probeAuthFailure;
+              const authFailure = getConnectionAuthFailureReason(error);
+              if (authFailure) {
+                this.authRejectedConnectionIds.add(connection.id);
+                probeAuthFailure = authFailure;
+              }
               probeByConnectionId.set(connection.id, {
                 status: "unavailable",
                 latencyMs: null,
@@ -1075,6 +1078,13 @@ export class HostRuntimeController {
         })();
       }
     });
+  }
+
+  private isConnectionUnavailable(
+    connectionId: string,
+    probe: ConnectionProbeState | null | undefined,
+  ): boolean {
+    return probe?.status === "unavailable" || this.authRejectedConnectionIds.has(connectionId);
   }
 
   private updateSnapshot(patch: HostRuntimeSnapshotPatch): void {
@@ -1285,7 +1295,8 @@ export class HostRuntimeController {
 
     const failConnection = async (error: unknown) => {
       if (!this.isCurrentSwitchRequest(requestVersion) || this.activeClient !== client) return;
-      if (getConnectionAuthFailureReason(error)) this.authRejected = true;
+      const authFailure = getConnectionAuthFailureReason(error);
+      if (authFailure) this.authRejectedConnectionIds.add(connection.id);
       this.unsubscribeClientStatus?.();
       this.unsubscribeClientStatus = null;
       this.unsubscribeClientHandlers?.();
@@ -1295,12 +1306,28 @@ export class HostRuntimeController {
       this.updateSnapshot({
         ...toSnapshotConnectionPatch(this.connectionMachineState, this.connectionEpoch),
         client: null,
-        authFailureReason: getConnectionAuthFailureReason(error),
+        authFailureReason: authFailure,
       });
+      if (authFailure) {
+        const probes = new Map(this.snapshot.probeByConnectionId);
+        probes.set(connection.id, { status: "unavailable", latencyMs: null });
+        this.updateSnapshot({ probeByConnectionId: probes });
+        for (const candidate of this.host.connections) {
+          if (!this.authRejectedConnectionIds.has(candidate.id)) {
+            this.connectionLastProbedAt.delete(candidate.id);
+          }
+        }
+      }
       try {
         await client.close();
       } catch {
         /* Preserve the compatibility/connection error. */
+      }
+      if (
+        authFailure &&
+        this.host.connections.some((candidate) => !this.authRejectedConnectionIds.has(candidate.id))
+      ) {
+        void this.runProbeCycleNow();
       }
     };
     try {

@@ -82,9 +82,9 @@ import {
   extractWsBearerProtocol,
   extractWsBearerToken,
   isBearerTokenValidAsync,
-  resolveSessionAdmission,
   type DaemonAuthConfig,
 } from "./auth.js";
+import { resolveSessionAdmission } from "./session-admission-auth.js";
 import {
   WebSocketRuntimeMetricsWindow,
   type WebSocketRuntimeCounters,
@@ -1362,7 +1362,7 @@ export class VoiceAssistantWebSocketServer {
       },
       "Client connected; awaiting hello",
     );
-    if (initialHello) this.handleHelloSafely({ ws, message: initialHello, pending });
+    if (initialHello) await this.handleHelloSafely({ ws, message: initialHello, pending });
   }
 
   private createSessionConnection(params: {
@@ -1578,7 +1578,7 @@ export class VoiceAssistantWebSocketServer {
     }
 
     pending.authenticating = true;
-    if (!(await this.admitPendingHello(ws, message, pending))) return;
+    if (!pending.admission && !(await this.admitPendingHello(ws, message, pending))) return;
 
     const clientId = message.clientId.trim();
     if (clientId.length === 0) {
@@ -1649,8 +1649,8 @@ export class VoiceAssistantWebSocketServer {
     ws: WebSocketLike;
     message: WSHelloMessage;
     pending: PendingConnection;
-  }): void {
-    void this.handleHello(params).catch((error: unknown) => {
+  }): Promise<void> {
+    return this.handleHello(params).catch((error: unknown) => {
       try {
         this.handleRawMessageError({
           ws: params.ws,
@@ -2246,7 +2246,7 @@ export class VoiceAssistantWebSocketServer {
   }): void {
     const { ws, message, pendingConnection } = params;
     if (message.type === "hello" && !pendingConnection.authenticating) {
-      this.handleHelloSafely({
+      void this.handleHelloSafely({
         ws,
         message,
         pending: pendingConnection,

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useReducer, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Alert, Text, View } from "react-native";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
@@ -82,32 +82,47 @@ export function PairLinkModal({
   onCancel,
   onSaved,
 }: PairLinkModalProps) {
+  return (
+    <PairLinkModalContent
+      key={`${visible}:${initialUrl ?? ""}:${initialPasswordRequired}`}
+      visible={visible}
+      initialUrl={initialUrl}
+      initialPasswordRequired={initialPasswordRequired}
+      onClose={onClose}
+      onCancel={onCancel}
+      onSaved={onSaved}
+    />
+  );
+}
+
+function PairLinkModalContent({
+  visible,
+  initialUrl,
+  initialPasswordRequired = false,
+  onClose,
+  onCancel,
+  onSaved,
+}: PairLinkModalProps) {
   const { theme } = useUnistyles();
   const { t } = useTranslation();
   const daemons = useHosts();
   const { probeAndUpsertConnectionFromOfferUrl } = useHostMutations();
   const isMobile = useIsCompactFormFactor();
 
-  const offerUrlRef = useRef("");
+  const offerUrlRef = useRef(initialUrl ?? "");
   const inputRef = useRef<EditingTextInputHandle>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [password, setPassword] = useState("");
-  const [needsPassword, setNeedsPassword] = useState(false);
-
-  useEffect(() => {
-    if (!visible || !initialUrl) return;
-    offerUrlRef.current = initialUrl;
-    inputRef.current?.replaceText(initialUrl);
-    setPassword("");
-    setNeedsPassword(initialPasswordRequired);
-  }, [initialUrl, initialPasswordRequired, visible]);
+  const [needsPassword, setNeedsPassword] = useState(initialPasswordRequired);
+  const [passwordResetKey, resetPasswordInput] = useReducer((key: number) => key + 1, 0);
 
   const clearInput = useCallback(() => {
     offerUrlRef.current = "";
     inputRef.current?.replaceText("");
     setPassword("");
     setNeedsPassword(false);
+    resetPasswordInput();
   }, []);
 
   const pairIcon = useMemo(
@@ -184,6 +199,7 @@ export function PairLinkModal({
     if (reset) {
       setPassword(reset.password);
       setNeedsPassword(reset.needsPassword);
+      resetPasswordInput();
       setErrorMessage("");
     }
     offerUrlRef.current = next;
@@ -208,6 +224,7 @@ export function PairLinkModal({
         <Text style={styles.label}>{t("pairing.link.label")}</Text>
         <AdaptiveTextInput
           ref={inputRef}
+          initialValue={initialUrl}
           testID="pair-link-input"
           nativeID="pair-link-input"
           accessibilityLabel={t("pairing.link.label")}
@@ -230,6 +247,7 @@ export function PairLinkModal({
           </Text>
           <AdaptiveTextInput
             testID="pair-link-password-input"
+            resetKey={`pair-link-password-${passwordResetKey}`}
             accessibilityLabel={t("pairing.hostPassword.label")}
             onChangeText={setPassword}
             secureTextEntry

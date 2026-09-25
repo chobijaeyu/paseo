@@ -11,4 +11,13 @@ describe("pairing target password", () => {
     });
     expect(resetCredentialsForPairingTarget(first, first)).toBeNull();
   });
+
+  it("clears the direct form credential when its advanced URI changes to a relay target", () => {
+    expect(
+      resetCredentialsForPairingTarget(
+        "tcp://old.example:6767?password=old-secret",
+        "relay://relay.example:443/srv_new?key=BBBB&ssl=true",
+      ),
+    ).toEqual({ password: "", needsPassword: false });
+  });
 });

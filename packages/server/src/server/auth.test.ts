@@ -10,9 +10,9 @@ import {
   hashDaemonPassword,
   isAgentMcpRequestAuthorized,
   isBearerTokenValidAsync,
-  resolveSessionAdmission,
   shouldBypassBearerAuth,
 } from "./auth.js";
+import { resolveSessionAdmission } from "./session-admission-auth.js";
 import {
   deleteLocalCredential,
   readLocalCredentialForTarget,
