@@ -1,5 +1,5 @@
 import path from "node:path";
-import type { Page } from "@playwright/test";
+import type { Page, TestInfo } from "@playwright/test";
 import { test, expect } from "../support/fixtures";
 import { gotoAppShell } from "../support/helpers/app";
 import {
@@ -240,6 +240,54 @@ async function createPinnedSiblingWorkspace(
   return sibling.workspace.id;
 }
 
+async function expectSidebarWorkspaces(page: Page, workspaceIds: string[]): Promise<void> {
+  for (const workspaceId of workspaceIds) {
+    await waitForSidebarWorkspace(page, workspaceId);
+  }
+}
+
+async function cacheWorkspaces(page: Page, workspaceIds: string[]): Promise<void> {
+  await gotoAppShell(page);
+  await expectSidebarWorkspaces(page, workspaceIds);
+  await expect.poll(() => readCachedRowIds(page, "workspace")).toEqual(workspaceIds);
+}
+
+async function reopenDamagedCacheBeforeHostResponds(
+  page: Page,
+  missingWorkspaceId: string,
+): Promise<() => void> {
+  await simulateDamagedLegacyDirectoryCache(page, missingWorkspaceId);
+  const releaseHost = await holdHostResponsesUntilCacheIsVisible(page);
+  await gotoAppShell(page);
+  return releaseHost;
+}
+
+async function expectDamagedCacheHydrated(
+  page: Page,
+  retainedWorkspaceId: string,
+  missingWorkspaceId: string,
+): Promise<void> {
+  await waitForSidebarWorkspace(page, retainedWorkspaceId);
+  await expect(page.getByTestId(getWorkspaceRowTestId(missingWorkspaceId))).toHaveCount(0);
+  await expect.poll(() => readCachedRowIds(page, "checkpoint")).toEqual([]);
+}
+
+async function expectRecoveredWorkspacesAfterReload(
+  page: Page,
+  workspaceIds: string[],
+  testInfo: TestInfo,
+): Promise<void> {
+  await expectSidebarWorkspaces(page, workspaceIds);
+  await expect.poll(() => readCachedRowIds(page, "workspace")).toEqual(workspaceIds);
+  await page.reload();
+  await expectSidebarWorkspaces(page, workspaceIds);
+  await page.screenshot({ path: testInfo.outputPath("recovered-workspaces.png") });
+  await testInfo.attach("recovered-workspaces", {
+    path: testInfo.outputPath("recovered-workspaces.png"),
+    contentType: "image/png",
+  });
+}
+
 test.describe("Sidebar workspace list", () => {
   test("recovers missing workspaces from a damaged legacy cache after reload", async ({
     page,
@@ -248,29 +296,16 @@ test.describe("Sidebar workspace list", () => {
     try {
       const siblingId = await createPinnedSiblingWorkspace(project);
       const ids = [project.workspaceId, siblingId].sort();
-      await gotoAppShell(page);
-      await waitForSidebarWorkspace(page, project.workspaceId);
-      await waitForSidebarWorkspace(page, siblingId);
-      await expect.poll(() => readCachedRowIds(page, "workspace")).toEqual(ids);
+      await test.step("cache both workspaces", () => cacheWorkspaces(page, ids));
 
-      await simulateDamagedLegacyDirectoryCache(page, project.workspaceId);
-      const releaseHost = await holdHostResponsesUntilCacheIsVisible(page);
-      await gotoAppShell(page);
-      await waitForSidebarWorkspace(page, siblingId);
-      await expect(page.getByTestId(getWorkspaceRowTestId(project.workspaceId))).toHaveCount(0);
-      await expect.poll(() => readCachedRowIds(page, "checkpoint")).toEqual([]);
+      const releaseHost = await test.step("reopen damaged cache before host responds", () =>
+        reopenDamagedCacheBeforeHostResponds(page, project.workspaceId));
+      await test.step("keep cached workspace and discard stale checkpoint", () =>
+        expectDamagedCacheHydrated(page, siblingId, project.workspaceId));
+
       releaseHost();
-      await waitForSidebarWorkspace(page, project.workspaceId);
-      await waitForSidebarWorkspace(page, siblingId);
-      await expect.poll(() => readCachedRowIds(page, "workspace")).toEqual(ids);
-      await page.reload();
-      await waitForSidebarWorkspace(page, project.workspaceId);
-      await waitForSidebarWorkspace(page, siblingId);
-      await page.screenshot({ path: testInfo.outputPath("recovered-workspaces.png") });
-      await testInfo.attach("recovered-workspaces", {
-        path: testInfo.outputPath("recovered-workspaces.png"),
-        contentType: "image/png",
-      });
+      await test.step("recover missing workspace and retain both after reload", () =>
+        expectRecoveredWorkspacesAfterReload(page, ids, testInfo));
     } finally {
       await project.cleanup();
     }
