@@ -189,9 +189,11 @@ describe("daemon bearer auth", () => {
       const token = (
         await readFile(join(daemonHandle.paseoHome, "local-credential"), "utf8")
       ).trim();
-      expect((await stat(join(daemonHandle.paseoHome, "local-credential"))).mode & 0o777).toBe(
-        0o600,
-      );
+      if (process.platform !== "win32") {
+        expect((await stat(join(daemonHandle.paseoHome, "local-credential"))).mode & 0o777).toBe(
+          0o600,
+        );
+      }
       for (const auth of [
         { kind: "password", password: "correct-password" },
         { kind: "localCredential", token },

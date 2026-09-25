@@ -196,7 +196,9 @@ describe("hello admission", () => {
     try {
       await writeFile(join(home, "paseo.pid"), JSON.stringify({ listen: "127.0.0.1:6767" }));
       const first = await writeLocalCredential(home);
-      expect((await stat(join(home, "local-credential"))).mode & 0o777).toBe(0o600);
+      if (process.platform !== "win32") {
+        expect((await stat(join(home, "local-credential"))).mode & 0o777).toBe(0o600);
+      }
       expect(readLocalCredentialForTarget(home, "tcp://localhost:6767")).toBe(first);
       expect(readLocalCredentialForTarget(home, "tcp://remote.example:6767")).toBeNull();
       const second = await writeLocalCredential(home);
