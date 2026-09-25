@@ -2123,6 +2123,11 @@ export const ar: TranslationResources = {
       saveError: "تعذر تحديث إنشاء البيانات الوصفية",
     },
     general: {
+      voice: "الصوت",
+      voiceWaitingSound: {
+        label: "صوت الانتظار",
+        description: "تشغيل نغمة متكررة أثناء انتظار الرد الصوتي.",
+      },
       title: "عام",
       sending: "الإرسال",
       browserData: {
